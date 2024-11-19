@@ -4,59 +4,149 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
+class Settings{
+    constructor(){
+        // controls
+        const type = 'ORBIT';
+        const enable_pan = true;
+        const enable_zoom = true;
+        const enable_rotate = true;
+        const min_distance = 0.1;
+        const max_distance = 100;
+        const target_x = 0;
+        const target_y = 0;
+        const target_z = 0;
+        const camera_x = 0;
+        const camera_y = 0;
+        const camera_z = 0;
+        const camera_fov = 50;
+        const camera_clip_near = 0.1;
+        const camera_clip_far = 100; 
+        // scene
+        const controls = 'ORBIT';
+        const meshes = undefined;
+        const environment = undefined;
+        const background = undefined;
+    }
+    update(dict){
+        if("controls" in dict){
+            if("type" in dict["controls"]){
+                this.type = dict["controls"]["type"]
+            }
+            if("enable_pan" in dict["controls"]){
+                this.enable_pan = dict["controls"]["enable_pan"]
+            }
+            if("enable_zoom" in dict["controls"]){
+                this.enable_zoom = dict["controls"]["enable_zoom"]
+            }
+            if("enable_rotate" in dict["controls"]){
+                this.enable_rotate = dict["controls"]["enable_rotate"]
+            }
+            if("min_distance" in dict["controls"]){
+                this.min_distance = dict["controls"]["min_distance"]
+            }
+            if("max_distance" in dict["controls"]){
+                this.max_distance = dict["controls"]["max_distance"]
+            }
+            if("target_x" in dict["controls"]){
+                this.target_x = dict["controls"]["target_x"]
+            }
+            if("target_y" in dict["controls"]){
+                this.target_y = dict["controls"]["target_y"]
+            }
+            if("target_z" in dict["controls"]){
+                this.target_z = dict["controls"]["target_z"]
+            }
+            if("camera_x" in dict["controls"]){
+                this.camera_x = dict["controls"]["camera_x"]
+            }
+            if("camera_y" in dict["controls"]){
+                this.camera_y = dict["controls"]["camera_y"]
+            }
+            if("camera_z" in dict["controls"]){
+                this.camera_z = dict["controls"]["camera_z"]
+            }
+            if("camera_fov" in dict["controls"]){
+                this.camera_fov = dict["controls"]["camera_fov"]
+            }
+            if("camera_clip_near" in dict["controls"]){
+                this.camera_clip_near = dict["controls"]["camera_clip_near"]
+            }
+            if("camera_clip_far" in dict["controls"]){
+                this.camera_clip_far = dict["controls"]["camera_clip_far"]
+            }
+
+            
+        }    
+
+        if("meshes" in dict){
+            this.meshes = dict["meshes"]
+        }
+        if("environment" in dict){
+            this.environment = dict["environment"]
+        }
+        if("background" in dict){
+            this.background = dict["background"]
+        }
+    }
+}
+
 // ################ class & helpers to wrap 3D scene setup for ease of use ################
 export class OdddViewer {
         // #### constructor function is called on object instantiation ####
-        constructor(container_id, env = null, geo = null){
-
+        constructor(container_id, jsondata){
             // html element
             this.container = document.getElementById(container_id);
+            // settings and data
+            const data = JSON.parse(jsondata)
+            const settings = new Settings
+            settings.update(data) 
 
             // scene
             this.scene = new THREE.Scene();
-            
-            // loaders
-            this.env = env;
-            this.envLoader = new THREE.TextureLoader();
-            if(env != null){
-                this.setEnvironment(env);
+            if (settings.background !== undefined){
+                this.scene.background = new THREE.Color( '#add7e6' );
             }
 
-            this.geo = geo;
-            if(geo != null){
-                this.setGeometry(geo);
-            }
-
-            this.geoLoader = new GLTFLoader();
-            
-            // camera 
-            let aspect = this.container.clientWidth / this.container.clientHeight;
-            let fov = 60; // to be accessed via camera.fov, camera.near, etc.
-            let near = 0.1;
-            let far = 32; // TODO: Set using bounding box of geometry loaded
-            this.camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-            this.camera.position.set( 1, 1.5, 2 );
-            this.scene.add(this.camera);
             
             // renderer
-            this.renderer = new THREE.WebGLRenderer( { antialias: true } );
+            this.renderer = new THREE.WebGLRenderer( { 
+                antialias: true,
+                alpha: true
+            } );
             this.renderer.physicallyBasedShading = true;
             this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
             this.renderer.setPixelRatio(window.devicePixelRatio);
-            this.renderer.toneMapping = THREE.NoToneMapping;
+            this.renderer.toneMapping = THREE.NeutralToneMapping;
             this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-            
+            this.renderer.toneMappingExposure = 1;
             // add renderer to div container
             this.container.append(this.renderer.domElement);
 
+
+            // camera
+            this.camera = new THREE.PerspectiveCamera(
+                settings.camera_fov, 
+                this.container.clientWidth / this.container.clientHeight, // aspect
+                settings.camera_clip_near, 
+                settings.camera_clip_far);
+            this.camera.position.set(
+                settings.camera_x, 
+                settings.camera_y, 
+                settings.camera_z );
+            this.scene.add(this.camera);
+
             // controls
             this.controls = new OrbitControls( this.camera, this.renderer.domElement );
-            this.controls.minDistance = 0;
-            this.controls.maxDistance = 3;
-            this.controls.enablePan = true;   
-            this.controls.target = new THREE.Vector3(0, 2, 0);
-            this.controls.update()
+            this.controls.minDistance = settings.min_distance;
+            this.controls.maxDistance = settings.max_distance;
 
+            this.controls.enablePan = settings.enable_pan;
+            this.controls.enableZoom = settings.enable_zoom;
+            this.controls.enableRotate = settings.enable_rotate;
+   
+            this.controls.target = new THREE.Vector3(settings.target_x, settings.target_y, settings.target_z);
+            this.controls.update()
             // bg color
 			this.backgroundCol = new THREE.Color( '#add7e6' );
 
@@ -76,45 +166,61 @@ export class OdddViewer {
 
             this.render();
             this.setGeometry.bind(this);  
+
+            // loaders
+            this.geoLoader = new GLTFLoader();
+
+            this.envLoader = new THREE.TextureLoader();
+            if(settings.environment != null){
+                this.setEnvironment(settings.environment);
+            }
+            
+
+
+            if(settings.meshes != null){
+                this.setGeometry(settings.meshes);
+            }
+
         }
         // #### function to load geometry ####
-        setGeometry(geoPath){
-            let vertCount = 0;
+        setGeometry(meshes){
             this.clearScene();
             var self = this;
-            let slicedPath = dirAndFile(geoPath);
-            let directory = slicedPath[0];
-            let file = slicedPath[1];
-            this.geoLoader.setPath(directory);
-
-            let geo = this.geoLoader.load(file, function(gltf){
-                self.animationmixer = new THREE.AnimationMixer(gltf.scene);
-                gltf.animations.forEach( (clip ) => {
-                    self.animationmixer.clipAction(clip).play();
-                    const action = self.animationmixer.clipAction(clip);
-                    action.clampWhenFinished = true;
-                    action.timeScale = 1;
-                    action.setLoop(THREE.LoopRepeat, Infinity);
-                })
-
-                if(gltf.animations.length > 0){
-                    self.animations = gltf.animations;
-                }
-
-                gltf.scene.traverse(function(node){
-                    if (node.isMesh || node.isLight) {
-                        node.castShadow = true;
+            for(let i=0; i<meshes.length; i++){
+                let mesh = meshes[i]
+                let slicedPath = dirAndFile(mesh);
+                let directory = slicedPath[0];
+                let file = slicedPath[1];
+                this.geoLoader.setPath(directory);
+    
+                let geo = this.geoLoader.load(file, function(gltf){
+                    self.animationmixer = new THREE.AnimationMixer(gltf.scene);
+                    gltf.animations.forEach( (clip ) => {
+                        self.animationmixer.clipAction(clip).play();
+                        const action = self.animationmixer.clipAction(clip);
+                        action.clampWhenFinished = true;
+                        action.timeScale = 1;
+                    })
+    
+                    if(gltf.animations.length > 0){
+                        self.animations = gltf.animations;
                     }
-                    if (node.isMesh) {
-                        node.receiveShadow = true;
-                    }
+    
+                    gltf.scene.traverse(function(node){
+                        if (node.isMesh || node.isLight) {
+                            node.castShadow = true;
+                        }
+                        if (node.isMesh) {
+                            node.receiveShadow = true;
+                        }
+                        
+                    });
                     
+                    self.scene.add(gltf.scene);
+                    self.updateView();
                 });
-                
-                self.scene.add(gltf.scene);
-                self.updateView();
-                console.log("oDDD: Geometry loaded.");
-            });
+            }
+            console.log("oDDD: Geometry loaded.");
         }
 
         // #### function to load environment texture ####
@@ -128,6 +234,9 @@ export class OdddViewer {
                 texture.needsUpdate = true;
                 context.envTex = envTex;
                 context.scene.environment = envTex;
+                if(context.scene.background === undefined){
+                    context.scene.background = envTex;
+                } 
                 context.scene.background = envTex;
                 context.updateView();
                 
@@ -167,12 +276,13 @@ export class OdddViewer {
                     self.animationmixer.update(self.clock.getDelta());
                     self.animations.forEach((clip) => {
                         const action = self.animationmixer.clipAction(clip);
+                        action.setLoop(THREE.LoopOnce);
                         action.play();
                         resolve();
                         })
                         self.render(); 
                     }
-                    , /*{cache: "no-store"}*/)
+                    , {cache: "no-store"})
 
                 return animPromise;
             }
@@ -192,6 +302,8 @@ export class OdddViewer {
         render(context=this){
             this.renderer.render(context.scene, context.camera)
         }
+
+        
 
 }
 
