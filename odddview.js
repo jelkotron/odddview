@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-class Settings{
+class Data{
     constructor(){
         // controls
         const type = 'ORBIT';
@@ -29,56 +29,55 @@ class Settings{
         const background = undefined;
     }
     update(dict){
+        // Settings
         if("controls" in dict){
             if("type" in dict["controls"]){
-                this.type = dict["controls"]["type"]
+                this.type = dict["controls"]["type"];
             }
             if("enable_pan" in dict["controls"]){
-                this.enable_pan = dict["controls"]["enable_pan"]
+                this.enable_pan = dict["controls"]["enable_pan"];
             }
             if("enable_zoom" in dict["controls"]){
-                this.enable_zoom = dict["controls"]["enable_zoom"]
+                this.enable_zoom = dict["controls"]["enable_zoom"];
             }
             if("enable_rotate" in dict["controls"]){
-                this.enable_rotate = dict["controls"]["enable_rotate"]
+                this.enable_rotate = dict["controls"]["enable_rotate"];
             }
             if("min_distance" in dict["controls"]){
-                this.min_distance = dict["controls"]["min_distance"]
+                this.min_distance = dict["controls"]["min_distance"];
             }
             if("max_distance" in dict["controls"]){
-                this.max_distance = dict["controls"]["max_distance"]
+                this.max_distance = dict["controls"]["max_distance"];
             }
             if("target_x" in dict["controls"]){
-                this.target_x = dict["controls"]["target_x"]
+                this.target_x = dict["controls"]["target_x"];
             }
             if("target_y" in dict["controls"]){
-                this.target_y = dict["controls"]["target_y"]
+                this.target_y = dict["controls"]["target_y"];
             }
             if("target_z" in dict["controls"]){
-                this.target_z = dict["controls"]["target_z"]
+                this.target_z = dict["controls"]["target_z"];
             }
             if("camera_x" in dict["controls"]){
-                this.camera_x = dict["controls"]["camera_x"]
+                this.camera_x = dict["controls"]["camera_x"];
             }
             if("camera_y" in dict["controls"]){
-                this.camera_y = dict["controls"]["camera_y"]
+                this.camera_y = dict["controls"]["camera_y"];
             }
             if("camera_z" in dict["controls"]){
-                this.camera_z = dict["controls"]["camera_z"]
+                this.camera_z = dict["controls"]["camera_z"];
             }
             if("camera_fov" in dict["controls"]){
-                this.camera_fov = dict["controls"]["camera_fov"]
+                this.camera_fov = dict["controls"]["camera_fov"];
             }
             if("camera_clip_near" in dict["controls"]){
-                this.camera_clip_near = dict["controls"]["camera_clip_near"]
+                this.camera_clip_near = dict["controls"]["camera_clip_near"];
             }
             if("camera_clip_far" in dict["controls"]){
-                this.camera_clip_far = dict["controls"]["camera_clip_far"]
+                this.camera_clip_far = dict["controls"]["camera_clip_far"];
             }
-
-            
         }    
-
+        // Data
         if("meshes" in dict){
             this.meshes = dict["meshes"]
         }
@@ -91,15 +90,18 @@ class Settings{
     }
 }
 
-// ################ class & helpers to wrap 3D scene setup for ease of use ################
 export class OdddViewer {
-        // #### constructor function is called on object instantiation ####
         constructor(container_id, jsondata){
+            console.log(document.getElementById("oddd_ctrl").dataset.jsondata);
+            console.log(document.getElementById("oddd_ctrl").dataset.jsondata);
+            console.log(document.getElementById("oddd_ctrl").dataset.jsondata);
+            console.log(document.getElementById("oddd_ctrl").dataset.jsondata);
+            
             // html element
             this.container = document.getElementById(container_id);
             // settings and data
             const data = JSON.parse(jsondata)
-            const settings = new Settings
+            const settings = new Data
             settings.update(data) 
 
             // scene
@@ -107,7 +109,6 @@ export class OdddViewer {
             if (settings.background !== undefined){
                 this.scene.background = new THREE.Color( '#add7e6' );
             }
-
             
             // renderer
             this.renderer = new THREE.WebGLRenderer( { 
@@ -117,12 +118,12 @@ export class OdddViewer {
             this.renderer.physicallyBasedShading = true;
             this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
             this.renderer.setPixelRatio(window.devicePixelRatio);
-            this.renderer.toneMapping = THREE.NeutralToneMapping;
+            this.renderer.toneMapping = THREE.LinearToneMapping;
             this.renderer.outputColorSpace = THREE.SRGBColorSpace;
             this.renderer.toneMappingExposure = 1;
+            
             // add renderer to div container
             this.container.append(this.renderer.domElement);
-
 
             // camera
             this.camera = new THREE.PerspectiveCamera(
@@ -147,6 +148,7 @@ export class OdddViewer {
    
             this.controls.target = new THREE.Vector3(settings.target_x, settings.target_y, settings.target_z);
             this.controls.update()
+            
             // bg color
 			this.backgroundCol = new THREE.Color( '#add7e6' );
 
@@ -159,6 +161,11 @@ export class OdddViewer {
             this.actions = undefined;
             this.clock = new THREE.Clock();
             
+            // ray casting for highlighting elements
+            this.pointer = new THREE.Vector2();
+            this.raycaster = new THREE.Raycaster();
+
+            // placeholder geometry
             const geometry = new THREE.BoxGeometry( 2, 2, 2 ); 
             const material = new THREE.MeshBasicMaterial( {color: 0x00ff00} ); 
             const cube = new THREE.Mesh( geometry, material ); 
@@ -174,15 +181,13 @@ export class OdddViewer {
             if(settings.environment != null){
                 this.setEnvironment(settings.environment);
             }
-            
-
 
             if(settings.meshes != null){
                 this.setGeometry(settings.meshes);
             }
 
         }
-        // #### function to load geometry ####
+
         setGeometry(meshes){
             this.clearScene();
             var self = this;
@@ -223,7 +228,6 @@ export class OdddViewer {
             console.log("oDDD: Geometry loaded.");
         }
 
-        // #### function to load environment texture ####
         setEnvironment(envTexPath, context=this){
             let slicedPath = dirAndFile(envTexPath);
             let directory = slicedPath[0];
@@ -291,7 +295,6 @@ export class OdddViewer {
             }
         } 
 
-        // #### function to adjust renderer to div container size and render view ####
         updateView() {
             this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
             this.camera.updateProjectionMatrix();
@@ -303,12 +306,34 @@ export class OdddViewer {
             this.renderer.render(context.scene, context.camera)
         }
 
+        getIntersections(mouse){
+            const canvas = this.renderer.domElement
+            const pos = this.getCanvasRelativePosition(mouse)
+            this.pointer.x = (pos.x / canvas.width ) *  2 - 1;
+            this.pointer.y = (pos.y / canvas.height) * -2 + 1;
+            
+            let object = undefined;
+            this.raycaster.setFromCamera( this.pointer, this.camera );
+            const intersects = this.raycaster.intersectObjects( this.scene.children, true );
+            
+            if (intersects.length > 0) {
+                object = intersects[0].object;
+            } 
+            return object
+        }
         
-
+        getCanvasRelativePosition(coords2d) {
+            const canvas = this.renderer.domElement;
+            const rect = canvas.getBoundingClientRect();
+            return {
+              x: (coords2d[0] - rect.left) * canvas.width  / rect.width,
+              y: (coords2d[1] - rect.top ) * canvas.height / rect.height,
+            };
+          }
 }
 
 
-// #### helper function so separate filepaths and -names ####
+// #### helper function so separate filepaths and -names for texture loader ####
 function dirAndFile(pathstring){
     pathstring = pathstring.split("/")
     let file = pathstring.pop();
