@@ -393,30 +393,33 @@ export class OdddViewer {
             const pos = this.getCanvasRelativePosition(mouse)
             this.pointer.x = (pos.x / canvas.width ) *  2 - 1;
             this.pointer.y = (pos.y / canvas.height) * -2 + 1;
-            
-            let object = undefined;
-            this.raycaster.setFromCamera( this.pointer, this.camera );
-            const intersects = this.raycaster.intersectObjects( this.scene.children, true );
-            
-            if(this.settings.highlight !== 'PERSISTENT'){
-                this.outlinePass.selectedObjects = [];
-            }
-            
-            if (intersects.length > 0) {
-                object = intersects[0].object;
-                if(this.settings.highlight !== 'NONE'){
-                    this.outlinePass.selectedObjects =[]
-                    this.outlinePass.selectedObjects.push(object);
-                }
-            }
-            else{
-                if(this.settings.highlight === 'VOLATILE'){
 
+            
+            
+            
+            if(pos.x > 0 && pos.x < canvas.width){
+                if(pos.y > 0 && pos.y < canvas.height){
+                    let object = undefined;
+                    this.raycaster.setFromCamera( this.pointer, this.camera );
+                    const intersects = this.raycaster.intersectObjects( this.scene.children, true );
+                    
+                    if(this.settings.highlight !== 'PERSISTENT'){
+                        this.outlinePass.selectedObjects = [];
+                    }
+                    
+                    if (intersects.length > 0) {
+                        object = intersects[0].object;
+                        if(this.settings.highlight !== 'NONE'){
+                            this.outlinePass.selectedObjects =[]
+                            this.outlinePass.selectedObjects.push(object);
+                        }
+                    }
+                    this.updateView()
+                    return object
                 }
             }
-                
-            this.updateView()
-            return object
+                    
+                    
         }
         
         getCanvasRelativePosition(coords2d) {
