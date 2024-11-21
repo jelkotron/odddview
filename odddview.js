@@ -4,29 +4,48 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
+// #### class storing 3d data and (default) scene settings to be set via json ####
 class Data{
-    constructor(){
+    constructor(data){
         // controls
-        const type = 'ORBIT';
-        const enable_pan = true;
-        const enable_zoom = true;
-        const enable_rotate = true;
-        const min_distance = 0.1;
-        const max_distance = 100;
-        const target_x = 0;
-        const target_y = 0;
-        const target_z = 0;
-        const camera_x = 0;
-        const camera_y = 0;
-        const camera_z = 0;
-        const camera_fov = 50;
-        const camera_clip_near = 0.1;
-        const camera_clip_far = 100; 
+        this.type = 'ORBIT';
+        this.enable_pan = true;
+        this.enable_zoom = true;
+        this.enable_rotate = true;
+        this.min_distance = 0.1;
+        this.max_distance = 100;
+        this.target_x = 0;
+        this.target_y = 0;
+        this.target_z = 0;
+        this.camera_x = 0;
+        this.camera_y = 0;
+        this.camera_z = 0;
+        this.camera_fov = 50;
+        this.camera_clip_near = 0.1;
+        this.camera_clip_far = 100; 
         // scene
-        const controls = 'ORBIT';
-        const meshes = undefined;
-        const environment = undefined;
-        const background = undefined;
+        this.controls = 'ORBIT';
+        this.meshes = undefined;
+        this.environment = undefined;
+        this.exposure = 1;
+        this.background_color = undefined;
+        this.render_transparent = false;
+        this.highlight_color_0 = '#FFFFFF';
+        this.highlight_color_1 = '#000000';
+        this.persistent_highlight = true
+        this.decompose = false;
+
+        // dict
+        this.dictionary = undefined;
+
+        if(data){
+            this.update(data);
+        }
     }
     update(dict){
         // Settings
@@ -79,74 +98,128 @@ class Data{
         }    
         // Data
         if("meshes" in dict){
-            this.meshes = dict["meshes"]
+            this.meshes = dict["meshes"];
         }
         if("environment" in dict){
-            this.environment = dict["environment"]
+            this.environment = dict["environment"];
         }
-        if("background" in dict){
-            this.background = dict["background"]
+        if("exposure" in dict){
+            this.exposure = dict["exposure"];
         }
+        if("background_color" in dict){
+            this.background_color = dict["background_color"];
+        }
+        if("render_transparent" in dict){
+            this.render_transparent = dict["render_transparent"];
+        }
+        if("dictionary" in dict){
+            this.dictionary = dict["dictionary"];
+        }
+        if("highlight" in dict){
+            this.highlight = dict["highlight"];
+        }
+        if("highlight_color_0" in dict){
+            this.highlight_color_0 = dict["highlight_color_0"];
+        }
+        if("highlight_color_1" in dict){
+            this.highlight_color_1 = dict["highlight_color_1"];
+        }
+        if("decompose" in dict){
+            this.decompose = dict["decompose"];
+        }
+
+            
     }
 }
 
+// #### class containing threejs logic ####
 export class OdddViewer {
-        constructor(container_id, jsondata){
-            console.log(document.getElementById("oddd_ctrl").dataset.jsondata);
-            console.log(document.getElementById("oddd_ctrl").dataset.jsondata);
-            console.log(document.getElementById("oddd_ctrl").dataset.jsondata);
-            console.log(document.getElementById("oddd_ctrl").dataset.jsondata);
-            
+        constructor(container, data){
             // html element
-            this.container = document.getElementById(container_id);
-            // settings and data
-            const data = JSON.parse(jsondata)
-            const settings = new Data
-            settings.update(data) 
+            this.container = container;
+            this.settings = data;
 
             // scene
             this.scene = new THREE.Scene();
-            if (settings.background !== undefined){
-                this.scene.background = new THREE.Color( '#add7e6' );
+            if (data.background_color !== undefined){
+                this.scene.background = new THREE.Color(data.background_color);
             }
+
+            // camera
+            this.camera = new THREE.PerspectiveCamera(
+                data.camera_fov, 
+                this.container.clientWidth / this.container.clientHeight, // aspect
+                data.camera_clip_near, 
+                data.camera_clip_far);
+            this.camera.position.set(
+                data.camera_x, 
+                data.camera_y, 
+                this.settings.camera_z );
+            this.scene.add(this.camera);
             
             // renderer
             this.renderer = new THREE.WebGLRenderer( { 
                 antialias: true,
                 alpha: true
             } );
+            
             this.renderer.physicallyBasedShading = true;
             this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
             this.renderer.setPixelRatio(window.devicePixelRatio);
-            this.renderer.toneMapping = THREE.LinearToneMapping;
+            this.renderer.toneMapping = THREE.NeutralToneMapping;
             this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-            this.renderer.toneMappingExposure = 1;
+            this.renderer.toneMappingExposure = 10000;//this.settings.exposure;
             
+            // composer
+            this.composer = new EffectComposer(this.renderer);
+            this.composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            
+            // shaded pass
+            this.renderPass = new RenderPass(this.scene, this.camera);
+            this.renderPass.toneMapping = THREE.LinearToneMapping;
+            this.renderPass.toneMappingExposure = 10000;
+            this.composer.addPass(this.renderPass)
+
+            // outline pass
+            this.outlinePass = new OutlinePass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                this.scene,
+                this.camera
+            );
+            this.outlinePass.edgeStrength = 3.0;
+            this.outlinePass.edgeGlow = 0;
+            this.outlinePass.edgeThickness = 1.0;
+            this.outlinePass.pulsePeriod = 0;
+            this.outlinePass.usePatternTexture = false; 
+            this.outlinePass.visibleEdgeColor.set(this.settings.highlight_color_0);
+            this.outlinePass.hiddenEdgeColor.set(this.settings.highlight_color_1);
+            
+            this.composer.addPass(this.outlinePass);
+
+            // anti aliasing
+            this.effectFXAA = new ShaderPass(FXAAShader);
+            this.effectFXAA.uniforms["resolution"].value.set(
+            1 / window.innerWidth,
+            1 / window.innerHeight
+            );
+            this.effectFXAA.renderToScreen = true;
+            this.composer.addPass(this.effectFXAA);
+
             // add renderer to div container
             this.container.append(this.renderer.domElement);
 
-            // camera
-            this.camera = new THREE.PerspectiveCamera(
-                settings.camera_fov, 
-                this.container.clientWidth / this.container.clientHeight, // aspect
-                settings.camera_clip_near, 
-                settings.camera_clip_far);
-            this.camera.position.set(
-                settings.camera_x, 
-                settings.camera_y, 
-                settings.camera_z );
-            this.scene.add(this.camera);
+            
 
             // controls
             this.controls = new OrbitControls( this.camera, this.renderer.domElement );
-            this.controls.minDistance = settings.min_distance;
-            this.controls.maxDistance = settings.max_distance;
+            this.controls.minDistance = this.settings.min_distance;
+            this.controls.maxDistance = this.settings.max_distance;
 
-            this.controls.enablePan = settings.enable_pan;
-            this.controls.enableZoom = settings.enable_zoom;
-            this.controls.enableRotate = settings.enable_rotate;
+            this.controls.enablePan = this.settings.enable_pan;
+            this.controls.enableZoom = this.settings.enable_zoom;
+            this.controls.enableRotate = this.settings.enable_rotate;
    
-            this.controls.target = new THREE.Vector3(settings.target_x, settings.target_y, settings.target_z);
+            this.controls.target = new THREE.Vector3(this.settings.target_x, this.settings.target_y, this.settings.target_z);
             this.controls.update()
             
             // bg color
@@ -173,17 +246,18 @@ export class OdddViewer {
 
             this.render();
             this.setGeometry.bind(this);  
+            this.updateView.bind(this);
 
             // loaders
             this.geoLoader = new GLTFLoader();
 
             this.envLoader = new THREE.TextureLoader();
-            if(settings.environment != null){
-                this.setEnvironment(settings.environment);
+            if(this.settings.environment != null){
+                this.setEnvironment(this.settings.environment);
             }
 
-            if(settings.meshes != null){
-                this.setGeometry(settings.meshes);
+            if(this.settings.meshes != null){
+                this.setGeometry(this.settings.meshes);
             }
 
         }
@@ -210,7 +284,7 @@ export class OdddViewer {
                     if(gltf.animations.length > 0){
                         self.animations = gltf.animations;
                     }
-    
+
                     gltf.scene.traverse(function(node){
                         if (node.isMesh || node.isLight) {
                             node.castShadow = true;
@@ -219,9 +293,14 @@ export class OdddViewer {
                             node.receiveShadow = true;
                         }
                         
-                    });
-                    
-                    self.scene.add(gltf.scene);
+                        if(self.settings.decompose === true){
+                            node.matrixWorld.decompose( node.position, node.quaternion, node.scale );
+                            self.scene.add(node);
+                        }
+                    })
+                    if(self.settings.decompose === false){
+                        self.scene.add(gltf.scene)
+                    }                    
                     self.updateView();
                 });
             }
@@ -241,9 +320,11 @@ export class OdddViewer {
                 if(context.scene.background === undefined){
                     context.scene.background = envTex;
                 } 
-                context.scene.background = envTex;
-                context.updateView();
+                if(!context.settings.render_transparent){
+                    context.scene.background = envTex;
+                }
                 
+                context.updateView();
                 const environment = new RoomEnvironment( context.renderer );
 				const pmremGenerator = new THREE.PMREMGenerator( context.renderer );
                 context.scene.environment = pmremGenerator.fromEquirectangular(texture).texture;
@@ -303,10 +384,11 @@ export class OdddViewer {
         }
 
         render(context=this){
-            this.renderer.render(context.scene, context.camera)
+            this.composer.render(context.scene, context.camera)
         }
 
-        getIntersections(mouse){
+        getIntersections(event){
+            let mouse = [event.clientX, event.clientY]; 
             const canvas = this.renderer.domElement
             const pos = this.getCanvasRelativePosition(mouse)
             this.pointer.x = (pos.x / canvas.width ) *  2 - 1;
@@ -316,9 +398,24 @@ export class OdddViewer {
             this.raycaster.setFromCamera( this.pointer, this.camera );
             const intersects = this.raycaster.intersectObjects( this.scene.children, true );
             
+            if(this.settings.highlight !== 'PERSISTENT'){
+                this.outlinePass.selectedObjects = [];
+            }
+            
             if (intersects.length > 0) {
                 object = intersects[0].object;
-            } 
+                if(this.settings.highlight !== 'NONE'){
+                    this.outlinePass.selectedObjects =[]
+                    this.outlinePass.selectedObjects.push(object);
+                }
+            }
+            else{
+                if(this.settings.highlight === 'VOLATILE'){
+
+                }
+            }
+                
+            this.updateView()
             return object
         }
         
@@ -329,9 +426,32 @@ export class OdddViewer {
               x: (coords2d[0] - rect.left) * canvas.width  / rect.width,
               y: (coords2d[1] - rect.top ) * canvas.height / rect.height,
             };
-          }
+        }
+
+        updateViewerSize(){
+            this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize( this.container.clientWidth, this.container.clientHeight );
+            this.composer.setSize( this.container.clientWidth, this.container.clientHeight );
+            this.effectFXAA.uniforms["resolution"].value.set(
+                1 / window.innerWidth,
+                1 / window.innerHeight
+              );
+            this.updateView()
+        }
+
+        updateMousePosition(event){
+            let mouse = [event.clientX, event.clientY]; 
+            let intersect = this.getIntersections(mouse);
+            
+            if(intersect != undefined){
+                return intersect; 
+            }
+            return undefined;
+        };
 }
 
+        
 
 // #### helper function so separate filepaths and -names for texture loader ####
 function dirAndFile(pathstring){
@@ -343,3 +463,62 @@ function dirAndFile(pathstring){
     }
     return [folder, file];
 }
+
+// #### main function ####
+function main(){ 
+    // get last executed script (this)
+    const script = document.scripts[document.scripts.length - 1];
+    
+    // get json url from data attributes (variables passed to script tag)
+    const data_url = script.dataset.jsondata;
+    // get container
+    const container = script.parentNode;
+    
+    // get data from data url
+    const response = fetch(data_url).then(res => res.json()).then(rawdata => {
+        const jsondata = JSON.parse(rawdata)
+        const data = new Data(jsondata)
+
+        let infoKey = undefined;
+        let infoValue = undefined;
+
+        // initiate odddviewer when ready
+        const viewer = new OdddViewer(container, data);
+        
+        // add additional elements if specified (dummy)
+        if(data["dictionary"] !== undefined){
+            infoKey = document.createElement("p");
+            infoKey.className = "infokey3d";
+            infoKey.innerHTML = "";
+            container.parentElement.appendChild(infoKey);
+
+            infoValue = document.createElement("p");
+            infoValue.className = "infoavlue3d";
+            infoValue.innerHTML = "";
+            container.parentElement.appendChild(infoValue);
+            
+        }
+        
+        // event listeners
+        window.addEventListener('resize', function(){viewer.updateViewerSize()});
+        viewer.controls.addEventListener("change", function(){viewer.updateView()});
+        document.addEventListener('pointermove', function(event){
+            let intersect = viewer.getIntersections(event);
+            if(intersect){
+                if(infoKey){
+                    infoKey.innerHTML = intersect.name
+                }
+                if(infoValue){
+                    infoValue.innerHTML = data["dictionary"][intersect.name]
+                }
+            
+            }
+            
+        });
+    });
+
+}
+
+        
+// run application
+main();
