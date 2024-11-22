@@ -199,8 +199,8 @@ export class OdddViewer {
             // anti aliasing
             this.effectFXAA = new ShaderPass(FXAAShader);
             this.effectFXAA.uniforms["resolution"].value.set(
-            1 / window.innerWidth,
-            1 / window.innerHeight
+                1 / window.innerWidth,
+                1 / window.innerHeight
             );
             this.effectFXAA.renderToScreen = true;
             this.composer.addPass(this.effectFXAA);
@@ -500,6 +500,17 @@ function main(){
             infoValue.innerHTML = "";
             container.parentElement.appendChild(infoValue);
             
+            let link = document.createTextNode("This is link");
+            let a = document.createElement('a')
+            // Append the text node to anchor element.
+            a.appendChild(link);
+
+            // Set the title.
+            a.title = "This is Link";
+
+            // Set the href property.
+            a.href = "/blocks/4";
+            container.parentElement.appendChild(a);
         }
         
         // event listeners
@@ -512,7 +523,15 @@ function main(){
                     infoKey.innerHTML = intersect.name
                 }
                 if(infoValue){
-                    infoValue.innerHTML = data["dictionary"][intersect.name]
+                    for(let i=0; i<data["dictionary"][intersect.name].length; i++){
+                        let bl = data["dictionary"][intersect.name][i];
+            
+                        const response = fetch(bl).then(res => res.text()).then(txt => {
+                            infoValue.innerHTML = txt; 
+                        })
+                        // infoValue.innerHTML = data["dictionary"][intersect.name]
+                    }
+                    // infoValue.innerHTML = data["dictionary"][intersect.name]
                 }
             
             }
