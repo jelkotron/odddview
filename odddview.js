@@ -467,6 +467,25 @@ function dirAndFile(pathstring){
     return [folder, file];
 }
 
+function updateTextElement(map){
+    if(map){
+        for (const [key, value] of Object.entries(map)) {
+            let leDiv = document.getElementById(key);
+            if(leDiv === null){
+                leDiv = document.createElement('div');
+                leDiv.id = key;
+                leDiv.innerHTML = value;
+            }else{
+                leDiv.innerHTML = value;
+            }
+            const c = document.getElementById("infovalue3d");
+            if(c){
+                c.appendChild(leDiv)
+            }
+          }
+    }
+}
+
 // #### main function ####
 function main(){ 
     // get last executed script (this)
@@ -496,48 +515,43 @@ function main(){
             container.parentElement.appendChild(infoKey);
 
             infoValue = document.createElement("p");
-            infoValue.className = "infoavlue3d";
+            infoValue.id = "infovalue3d";
             infoValue.innerHTML = "";
             container.parentElement.appendChild(infoValue);
-            
-            let link = document.createTextNode("This is link");
-            let a = document.createElement('a')
-            // Append the text node to anchor element.
-            a.appendChild(link);
-
-            // Set the title.
-            a.title = "This is Link";
-
-            // Set the href property.
-            a.href = "/blocks/4";
-            container.parentElement.appendChild(a);
         }
         
         // event listeners
         window.addEventListener('resize', function(){viewer.updateViewerSize()});
+        
         viewer.controls.addEventListener("change", function(){viewer.updateView()});
+        
         document.addEventListener('pointermove', function(event){
             let intersect = viewer.getIntersections(event);
             if(intersect){
                 if(infoKey){
+                    if(infoKey.innerHTML !== intersect.name){
+                        if(infoValue){
+                            infoValue.innerHTML = "";
+                            for(let i=0; i<data["dictionary"][intersect.name].length; i++){
+                                let bl = data["dictionary"][intersect.name][i];
+                                
+                                let blockMap = {};
+                                const response = fetch(bl).then(res => res.text()).then(txt => {
+                                    blockMap[bl] = txt;
+                                    return blockMap;
+                                }).then(blockMap => {
+                                    updateTextElement(blockMap);
+                                })
+                            }
+                        }
+                        
+                    }
                     infoKey.innerHTML = intersect.name
                 }
-                if(infoValue){
-                    for(let i=0; i<data["dictionary"][intersect.name].length; i++){
-                        let bl = data["dictionary"][intersect.name][i];
-            
-                        const response = fetch(bl).then(res => res.text()).then(txt => {
-                            infoValue.innerHTML = txt; 
-                        })
-                        // infoValue.innerHTML = data["dictionary"][intersect.name]
-                    }
-                    // infoValue.innerHTML = data["dictionary"][intersect.name]
-                }
-            
             }
-            
         });
     });
+
 
 }
 
