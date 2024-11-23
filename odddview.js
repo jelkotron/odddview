@@ -208,7 +208,8 @@ export class OdddViewer {
             // add renderer to div container
             this.container.append(this.renderer.domElement);
 
-            
+            // selection
+            this.select_previous = undefined;
 
             // controls
             this.controls = new OrbitControls( this.camera, this.renderer.domElement );
@@ -404,8 +405,8 @@ export class OdddViewer {
                     const intersects = this.raycaster.intersectObjects( this.scene.children, true );
                     
                     if(this.settings.highlight !== 'PERSISTENT'){
-                        this.outlinePass.selectedObjects = [];
                     }
+                    this.outlinePass.selectedObjects = [];
                     
                     if (intersects.length > 0) {
                         object = intersects[0].object;
@@ -414,12 +415,35 @@ export class OdddViewer {
                             this.outlinePass.selectedObjects.push(object);
                         }
                     }
+                    else{
+                        if(this.select_previous !== undefined){
+                            this.outlinePass.selectedObjects.push(this.select_previous);
+                        }
+                    } 
                     this.updateView()
                     return object
                 }
             }
-                    
-                    
+            
+            this.outlinePass.selectedObjects =[];
+            
+            if(this.select_previous !== undefined){
+                    this.outlinePass.selectedObjects.push(this.select_previous);
+                }
+            
+                this.updateView();
+
+            return undefined
+
+        }
+            
+            
+        
+        select_set(event){
+            let obj = this.getIntersections(event);
+            if(obj){
+                this.select_previous = obj;
+            } 
         }
         
         getCanvasRelativePosition(coords2d) {
@@ -467,25 +491,32 @@ function dirAndFile(pathstring){
     return [folder, file];
 }
 
+function camelize(str) {
+    return str.replace(/(?:^\w|[A-Z]|\b\w|\s+)/g, function(match, index) {
+      if (+match === 0) return ""; // or if (/\s+/.test(match)) for white spaces
+      return index === 0 ? match.toLowerCase() : match.toUpperCase();
+    });
+  }
+  
+
 function updateTextElement(map){
-    if(map){
-        for (const [key, value] of Object.entries(map)) {
-            let leDiv = document.getElementById(key);
-            if(leDiv === null){
-                leDiv = document.createElement('div');
-                leDiv.id = key;
-                leDiv.innerHTML = value;
-            }else{
-                leDiv.innerHTML = value;
-            }
+    for(let i=0; i<map.length; i++){
+        let key = map[i][0];
+        let value = map[i][1];
+        let leDiv = document.getElementById(key);
+        if(leDiv === null){
+            leDiv = document.createElement('div');
+            leDiv.id = key;
+            leDiv.innerHTML = value;
             const c = document.getElementById("infovalue3d");
             if(c){
                 c.appendChild(leDiv)
             }
-          }
+        }else{
+            leDiv.innerHTML = value;
+        }
     }
 }
-
 // #### main function ####
 function main(){ 
     // get last executed script (this)
@@ -495,12 +526,13 @@ function main(){
     const data_url = script.dataset.jsondata;
     // get container
     const container = script.parentNode;
-    
+
+    let select_previous = undefined;
+    let hover = undefined;
     // get data from data url
     const response = fetch(data_url).then(res => res.json()).then(rawdata => {
         const jsondata = JSON.parse(rawdata)
         const data = new Data(jsondata)
-
         let infoKey = undefined;
         let infoValue = undefined;
 
@@ -512,7 +544,14 @@ function main(){
             infoKey = document.createElement("p");
             infoKey.className = "infokey3d";
             infoKey.innerHTML = "";
-            container.parentElement.appendChild(infoKey);
+            infoKey.style.color = data["highlight_color_0"];
+            infoKey.style.position = 'absolute';
+            infoKey.style.top = '10px';
+            infoKey.style.left = '10px';
+            infoKey.style.fontSize = '24px';
+            
+
+            container.appendChild(infoKey);
 
             infoValue = document.createElement("p");
             infoValue.id = "infovalue3d";
@@ -528,28 +567,90 @@ function main(){
         document.addEventListener('pointermove', function(event){
             let intersect = viewer.getIntersections(event);
             if(intersect){
+                container.style.cursor = "pointer";
                 if(infoKey){
-                    if(infoKey.innerHTML !== intersect.name){
-                        if(infoValue){
-                            infoValue.innerHTML = "";
-                            for(let i=0; i<data["dictionary"][intersect.name].length; i++){
-                                let bl = data["dictionary"][intersect.name][i];
-                                
-                                let blockMap = {};
-                                const response = fetch(bl).then(res => res.text()).then(txt => {
-                                    blockMap[bl] = txt;
-                                    return blockMap;
-                                }).then(blockMap => {
-                                    updateTextElement(blockMap);
-                                })
+                    const title = data["dictionary"][intersect.name][0]+'title/';
+                    const response = fetch(title)
+                    .then(res => res.text())
+                    .then(txt => {
+                        if(infoKey.innerHTML !== txt && infoKey.innerHTML !== intersect.name){
+                            const infoHeader = ">> ";
+                            let info = ""; 
+                            if(txt !== "" && txt !== "None"){
+                                info = txt  
                             }
+                            else{
+                                info = intersect.name;
+                            }
+                            hover = info;
+
+                            infoKey.innerHTML = infoHeader + info;
                         }
-                        
-                    }
-                    infoKey.innerHTML = intersect.name
+                        if(txt == select_previous){
+                            infoKey.innerHTML = txt;
+                        }
+
+                    })
+
+
+                    
+                }
+            }
+            else{
+                container.style.cursor = "auto";
+                infoKey.innerHTML = "";
+                hover = undefined;
+                if(select_previous){
+                    infoKey.innerHTML = select_previous;
                 }
             }
         });
+
+        window.addEventListener('mousedown', function(event){
+            let intersect = viewer.getIntersections(event);
+            if(true){ // TODO: check if mouse in 3d canvas
+                let intersect = viewer.getIntersections(event);
+                if(intersect){
+                    if(infoValue){
+                        let promise = new Promise(function(resolve, reject) {
+                            infoValue.innerHTML = "";
+                            for(let i=0; i<data["dictionary"][intersect.name].length; i++){
+                                let bl = data["dictionary"][intersect.name][i];
+                                let leDiv = document.createElement('div');
+                                leDiv.id = bl; 
+                                infoValue.appendChild(leDiv)
+                            }
+                            resolve("Done");
+                        })
+
+                        promise.then(
+                            function(){
+                                for(let i=0; i<data["dictionary"][intersect.name].length; i++){
+                                    let bl = data["dictionary"][intersect.name][i];
+                                    
+                                    let blockList = [];
+                                    const response = fetch(bl).then(res => res.text()).then(txt => {
+                                        blockList.push([bl ,txt]);
+                                        return blockList;
+                                    }).then(blockList => {
+                                        updateTextElement(blockList);
+                                        viewer.select_set(event);
+                                        if(hover){
+                                            select_previous = hover;
+                                        }
+                                    })
+                                }
+                            }
+                        )
+                          
+                        
+
+                    }
+                }
+            }
+            
+        });
+
     });
 
 
