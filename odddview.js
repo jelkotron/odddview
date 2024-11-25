@@ -10,7 +10,7 @@ import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
 // #### class storing 3d data and (default) scene settings to be set via json ####
-class Data{
+export class OdddData{
     constructor(data){
         // controls
         this.type = 'ORBIT';
@@ -39,6 +39,7 @@ class Data{
         this.highlight_color_1 = '#000000';
         this.persistent_highlight = true
         this.decompose = false;
+        this.root_name = 'root';
 
         // dict
         this.dictionary = undefined;
@@ -127,6 +128,9 @@ class Data{
         if("decompose" in dict){
             this.decompose = dict["decompose"];
         }
+        if("root_name" in dict){
+            this.root_name = dict["root_name"];
+        }
 
             
     }
@@ -168,7 +172,6 @@ export class OdddViewer {
             this.renderer.setPixelRatio(window.devicePixelRatio);
             this.renderer.toneMapping = THREE.NeutralToneMapping;
             this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-            this.renderer.toneMappingExposure = 10000;//this.settings.exposure;
             
             // composer
             this.composer = new EffectComposer(this.renderer);
@@ -177,7 +180,6 @@ export class OdddViewer {
             // shaded pass
             this.renderPass = new RenderPass(this.scene, this.camera);
             this.renderPass.toneMapping = THREE.LinearToneMapping;
-            this.renderPass.toneMappingExposure = 10000;
             this.composer.addPass(this.renderPass)
 
             // outline pass
@@ -186,15 +188,45 @@ export class OdddViewer {
                 this.scene,
                 this.camera
             );
-            this.outlinePass.edgeStrength = 3.0;
+            this.outlinePass.edgeStrength = 4.0;
             this.outlinePass.edgeGlow = 0;
-            this.outlinePass.edgeThickness = 1.0;
+            this.outlinePass.edgeThickness = 1;
             this.outlinePass.pulsePeriod = 0;
-            this.outlinePass.usePatternTexture = false; 
+            this.outlinePass.usePatternTexture = false;
+             
             this.outlinePass.visibleEdgeColor.set(this.settings.highlight_color_0);
             this.outlinePass.hiddenEdgeColor.set(this.settings.highlight_color_1);
             
             this.composer.addPass(this.outlinePass);
+
+            // texture pattern pass
+            // outline pass
+            this.patternTexturePass = new OutlinePass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                this.scene,
+                this.camera
+            );
+            this.patternTexturePass.edgeStrength = 0.1;
+            this.patternTexturePass.edgeThickness = 0.1;
+            this.patternTexturePass.usePatternTexture = true;
+            this.patternTexturePass.edgeGlow = 0;
+
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.load( '../../media/checker.jpg', (texture) => {
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+
+                this.patternTexturePass.patternTexture = texture;
+            } );
+            
+
+
+
+             
+            this.patternTexturePass.visibleEdgeColor.set('white');
+            this.patternTexturePass.hiddenEdgeColor.set('black');
+            
+            this.composer.addPass(this.patternTexturePass);
 
             // anti aliasing
             this.effectFXAA = new ShaderPass(FXAAShader);
@@ -215,6 +247,8 @@ export class OdddViewer {
             this.controls = new OrbitControls( this.camera, this.renderer.domElement );
             this.controls.minDistance = this.settings.min_distance;
             this.controls.maxDistance = this.settings.max_distance;
+
+            this.controls.minRotation = 
 
             this.controls.enablePan = this.settings.enable_pan;
             this.controls.enableZoom = this.settings.enable_zoom;
@@ -260,6 +294,11 @@ export class OdddViewer {
             if(this.settings.meshes != null){
                 this.setGeometry(this.settings.meshes);
             }
+
+            window.addEventListener('resize', () => {this.updateViewerSize()});
+            this.controls.addEventListener("change", () => {
+                this.updateView();
+            });
 
         }
 
@@ -377,7 +416,7 @@ export class OdddViewer {
             }
         } 
 
-        updateView() {
+        updateView = function() {
             this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
             this.camera.updateProjectionMatrix();
             
@@ -388,6 +427,29 @@ export class OdddViewer {
             this.composer.render(context.scene, context.camera)
         }
 
+        setPrimaryHighlight(objects){
+            if(objects != undefined && objects.length !== 0){
+                this.outlinePass.selectedObjects = [];
+                this.outlinePass.selectedObjects.push(objects[0].object);
+            }
+            if(objects === null){
+                this.outlinePass.selectedObjects = [];     
+            }
+            this.updateView(); 
+        }
+
+
+        setSecondaryHighlight(objects){
+            if(objects != undefined && objects.length !== 0){
+                this.patternTexturePass.selectedObjects = [];
+                this.patternTexturePass.selectedObjects.push(objects[0].object);
+            }
+            if(objects === null){
+                this.patternTexturePass.selectedObjects = [];     
+            }
+            this.updateView(); 
+        }
+
         getIntersections(event){
             let mouse = [event.clientX, event.clientY]; 
             const canvas = this.renderer.domElement
@@ -395,9 +457,23 @@ export class OdddViewer {
             this.pointer.x = (pos.x / canvas.width ) *  2 - 1;
             this.pointer.y = (pos.y / canvas.height) * -2 + 1;
 
+            let intersects = [];
+            if(pos.x > 0 && pos.x < canvas.width){
+                if(pos.y > 0 && pos.y < canvas.height){
+                    this.raycaster.setFromCamera( this.pointer, this.camera );
+                    intersects = this.raycaster.intersectObjects( this.scene.children, true );
+                }
+            }
+            return intersects
+        }
             
-            
-            
+        gggetIntersections(event){
+            let mouse = [event.clientX, event.clientY]; 
+            const canvas = this.renderer.domElement
+            const pos = this.getCanvasRelativePosition(mouse)
+            this.pointer.x = (pos.x / canvas.width ) *  2 - 1;
+            this.pointer.y = (pos.y / canvas.height) * -2 + 1;
+
             if(pos.x > 0 && pos.x < canvas.width){
                 if(pos.y > 0 && pos.y < canvas.height){
                     let object = undefined;
@@ -431,13 +507,11 @@ export class OdddViewer {
                     this.outlinePass.selectedObjects.push(this.select_previous);
                 }
             
-                this.updateView();
+            this.updateView();
 
             return undefined
 
         }
-            
-            
         
         select_set(event){
             let obj = this.getIntersections(event);
@@ -490,172 +564,3 @@ function dirAndFile(pathstring){
     }
     return [folder, file];
 }
-
-function camelize(str) {
-    return str.replace(/(?:^\w|[A-Z]|\b\w|\s+)/g, function(match, index) {
-      if (+match === 0) return ""; // or if (/\s+/.test(match)) for white spaces
-      return index === 0 ? match.toLowerCase() : match.toUpperCase();
-    });
-  }
-  
-
-function updateTextElement(map){
-    for(let i=0; i<map.length; i++){
-        let key = map[i][0];
-        let value = map[i][1];
-        let leDiv = document.getElementById(key);
-        if(leDiv === null){
-            leDiv = document.createElement('div');
-            leDiv.id = key;
-            leDiv.innerHTML = value;
-            const c = document.getElementById("infovalue3d");
-            if(c){
-                c.appendChild(leDiv)
-            }
-        }else{
-            leDiv.innerHTML = value;
-        }
-    }
-}
-// #### main function ####
-function main(){ 
-    // get last executed script (this)
-    const script = document.scripts[document.scripts.length - 1];
-    
-    // get json url from data attributes (variables passed to script tag)
-    const data_url = script.dataset.jsondata;
-    // get container
-    const container = script.parentNode;
-
-    let select_previous = undefined;
-    let hover = undefined;
-    // get data from data url
-    const response = fetch(data_url).then(res => res.json()).then(rawdata => {
-        const jsondata = JSON.parse(rawdata)
-        const data = new Data(jsondata)
-        let infoKey = undefined;
-        let infoValue = undefined;
-
-        // initiate odddviewer when ready
-        const viewer = new OdddViewer(container, data);
-        
-        // add additional elements if specified (dummy)
-        if(data["dictionary"] !== undefined){
-            infoKey = document.createElement("p");
-            infoKey.className = "infokey3d";
-            infoKey.innerHTML = "";
-            infoKey.style.color = data["highlight_color_0"];
-            infoKey.style.position = 'absolute';
-            infoKey.style.top = '10px';
-            infoKey.style.left = '10px';
-            infoKey.style.fontSize = '24px';
-            
-
-            container.appendChild(infoKey);
-
-            infoValue = document.createElement("p");
-            infoValue.id = "infovalue3d";
-            infoValue.innerHTML = "";
-            container.parentElement.appendChild(infoValue);
-        }
-        
-        // event listeners
-        window.addEventListener('resize', function(){viewer.updateViewerSize()});
-        
-        viewer.controls.addEventListener("change", function(){viewer.updateView()});
-        
-        document.addEventListener('pointermove', function(event){
-            let intersect = viewer.getIntersections(event);
-            if(intersect){
-                container.style.cursor = "pointer";
-                if(infoKey){
-                    const title = data["dictionary"][intersect.name][0]+'title/';
-                    const response = fetch(title)
-                    .then(res => res.text())
-                    .then(txt => {
-                        if(infoKey.innerHTML !== txt && infoKey.innerHTML !== intersect.name){
-                            const infoHeader = ">> ";
-                            let info = ""; 
-                            if(txt !== "" && txt !== "None"){
-                                info = txt  
-                            }
-                            else{
-                                info = intersect.name;
-                            }
-                            hover = info;
-
-                            infoKey.innerHTML = infoHeader + info;
-                        }
-                        if(txt == select_previous){
-                            infoKey.innerHTML = txt;
-                        }
-
-                    })
-
-
-                    
-                }
-            }
-            else{
-                container.style.cursor = "auto";
-                infoKey.innerHTML = "";
-                hover = undefined;
-                if(select_previous){
-                    infoKey.innerHTML = select_previous;
-                }
-            }
-        });
-
-        window.addEventListener('mousedown', function(event){
-            let intersect = viewer.getIntersections(event);
-            if(true){ // TODO: check if mouse in 3d canvas
-                let intersect = viewer.getIntersections(event);
-                if(intersect){
-                    if(infoValue){
-                        let promise = new Promise(function(resolve, reject) {
-                            infoValue.innerHTML = "";
-                            for(let i=0; i<data["dictionary"][intersect.name].length; i++){
-                                let bl = data["dictionary"][intersect.name][i];
-                                let leDiv = document.createElement('div');
-                                leDiv.id = bl; 
-                                infoValue.appendChild(leDiv)
-                            }
-                            resolve("Done");
-                        })
-
-                        promise.then(
-                            function(){
-                                for(let i=0; i<data["dictionary"][intersect.name].length; i++){
-                                    let bl = data["dictionary"][intersect.name][i];
-                                    
-                                    let blockList = [];
-                                    const response = fetch(bl).then(res => res.text()).then(txt => {
-                                        blockList.push([bl ,txt]);
-                                        return blockList;
-                                    }).then(blockList => {
-                                        updateTextElement(blockList);
-                                        viewer.select_set(event);
-                                        if(hover){
-                                            select_previous = hover;
-                                        }
-                                    })
-                                }
-                            }
-                        )
-                          
-                        
-
-                    }
-                }
-            }
-            
-        });
-
-    });
-
-
-}
-
-        
-// run application
-main();
