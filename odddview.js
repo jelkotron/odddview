@@ -8,7 +8,9 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
+
 // #### class storing 3d data and (default) scene settings to be set via json ####
 export class OdddData{
     constructor(data){
@@ -32,6 +34,7 @@ export class OdddData{
         this.controls = 'ORBIT';
         this.meshes = undefined;
         this.environment = undefined;
+        this.tonemapping = undefined;
         this.exposure = 1;
         this.background_color = undefined;
         this.render_transparent = false;
@@ -104,6 +107,9 @@ export class OdddData{
         if("environment" in dict){
             this.environment = dict["environment"];
         }
+        if("tonemapping" in dict){
+            this.tonemapping = dict["tonemapping"];
+        }
         if("exposure" in dict){
             this.exposure = dict["exposure"];
         }
@@ -170,18 +176,30 @@ export class OdddViewer {
             this.renderer.physicallyBasedShading = true;
             this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
             this.renderer.setPixelRatio(window.devicePixelRatio);
-            this.renderer.toneMapping = THREE.NeutralToneMapping;
             this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-            
+
+            let toneMappingOptions = {
+                undefined: THREE.NoToneMapping,
+                "None": THREE.NoToneMapping,
+				"Linear": THREE.LinearToneMapping,
+				"Reinhard": THREE.ReinhardToneMapping,
+				"Cineon": THREE.CineonToneMapping,
+				"ACESFilmic": THREE.ACESFilmicToneMapping,
+				"AgX": THREE.AgXToneMapping,
+				"Neutral": THREE.NeutralToneMapping,
+				"Custom": THREE.CustomToneMapping
+			};
+
+            this.renderer.toneMapping = toneMappingOptions[this.settings.tonemapping];
+		    this.renderer.toneMappingExposure = this.settings.exposure;
+           
             // composer
             this.composer = new EffectComposer(this.renderer);
             this.composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             
             // shaded pass
             this.renderPass = new RenderPass(this.scene, this.camera);
-            this.renderPass.toneMapping = THREE.LinearToneMapping;
-            this.composer.addPass(this.renderPass)
-
+            
             // outline pass
             this.outlinePass = new OutlinePass(
                 new THREE.Vector2(window.innerWidth, window.innerHeight),
@@ -193,14 +211,12 @@ export class OdddViewer {
             this.outlinePass.edgeThickness = 1;
             this.outlinePass.pulsePeriod = 0;
             this.outlinePass.usePatternTexture = false;
-             
+            
             this.outlinePass.visibleEdgeColor.set(this.settings.highlight_color_0);
             this.outlinePass.hiddenEdgeColor.set(this.settings.highlight_color_1);
             
-            this.composer.addPass(this.outlinePass);
-
+            
             // texture pattern pass
-            // outline pass
             this.patternTexturePass = new OutlinePass(
                 new THREE.Vector2(window.innerWidth, window.innerHeight),
                 this.scene,
@@ -210,58 +226,68 @@ export class OdddViewer {
             this.patternTexturePass.edgeThickness = 0.1;
             this.patternTexturePass.usePatternTexture = true;
             this.patternTexturePass.edgeGlow = 0;
-
+            
             const textureLoader = new THREE.TextureLoader();
             textureLoader.load( '../../media/checker.jpg', (texture) => {
                 texture.wrapS = THREE.RepeatWrapping;
                 texture.wrapT = THREE.RepeatWrapping;
-
+                
                 this.patternTexturePass.patternTexture = texture;
             } );
             
-
-
-
-             
             this.patternTexturePass.visibleEdgeColor.set('white');
             this.patternTexturePass.hiddenEdgeColor.set('black');
             
-            this.composer.addPass(this.patternTexturePass);
-
-            // anti aliasing
+            
+            // anti aliasing pass
             this.effectFXAA = new ShaderPass(FXAAShader);
             this.effectFXAA.uniforms["resolution"].value.set(
                 1 / window.innerWidth,
                 1 / window.innerHeight
             );
             this.effectFXAA.renderToScreen = true;
-            this.composer.addPass(this.effectFXAA);
-
+            
             // add renderer to div container
             this.container.append(this.renderer.domElement);
-
+            
             // selection
             this.select_previous = undefined;
-
+            
             // controls
             this.controls = new OrbitControls( this.camera, this.renderer.domElement );
             this.controls.minDistance = this.settings.min_distance;
             this.controls.maxDistance = this.settings.max_distance;
-
+            
             this.controls.minRotation = 
-
+            
             this.controls.enablePan = this.settings.enable_pan;
             this.controls.enableZoom = this.settings.enable_zoom;
             this.controls.enableRotate = this.settings.enable_rotate;
-   
+            
             this.controls.target = new THREE.Vector3(this.settings.target_x, this.settings.target_y, this.settings.target_z);
             this.controls.update()
             
             // bg color
 			this.backgroundCol = new THREE.Color( '#add7e6' );
-
+            
+            
             // environment texture
             this.envTex = undefined;
+            
+            
+            // this.composer = this.renderer;
+            this.composer.addPass(this.renderPass)
+            this.composer.addPass(this.outlinePass);
+            this.composer.addPass(this.patternTexturePass);
+            this.composer.addPass(this.effectFXAA);
+            
+            this.outputPass = new OutputPass();
+				this.composer.addPass( this.outputPass );
+
+
+
+
+
 
             // animation
             this.animationmixer = undefined;
@@ -286,6 +312,7 @@ export class OdddViewer {
             // loaders
             this.geoLoader = new GLTFLoader();
 
+            this.envMap = undefined;
             this.envLoader = new THREE.TextureLoader();
             if(this.settings.environment != null){
                 this.setEnvironment(this.settings.environment);
@@ -311,7 +338,7 @@ export class OdddViewer {
                 let directory = slicedPath[0];
                 let file = slicedPath[1];
                 this.geoLoader.setPath(directory);
-    
+
                 let geo = this.geoLoader.load(file, function(gltf){
                     self.animationmixer = new THREE.AnimationMixer(gltf.scene);
                     gltf.animations.forEach( (clip ) => {
@@ -357,13 +384,14 @@ export class OdddViewer {
                 texture.needsUpdate = true;
                 context.envTex = envTex;
                 context.scene.environment = envTex;
+                // context.scene.enviroenvironmentIntensity = 1;
                 if(context.scene.background === undefined){
                     context.scene.background = envTex;
                 } 
                 if(!context.settings.render_transparent){
                     context.scene.background = envTex;
                 }
-                
+                context.envMap = envTex;
                 context.updateView();
                 const environment = new RoomEnvironment( context.renderer );
 				const pmremGenerator = new THREE.PMREMGenerator( context.renderer );

@@ -65,79 +65,90 @@ class GuiElements{
     }
 }
 
-
+var setInnerHTML = function(elm, html) {
+    elm.innerHTML = html;
+    Array.from(elm.querySelectorAll("script")).forEach(oldScript => {
+      const newScript = document.createElement("script");
+      Array.from(oldScript.attributes)
+        .forEach(attr => newScript.setAttribute(attr.name, attr.value));
+      newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+      oldScript.parentNode.replaceChild(newScript, oldScript);
+    });
+}
 
 function main(){    
     // get json url from data attributes (variables passed to script tag)
     const script = document.scripts[document.scripts.length - 1];
-    const data_url = script.dataset.jsondata;
-    
     // get container
     const container = script.parentNode;
     
     // get data, add objects 
-    const response = fetch(data_url).then(res => res.json()).then(rawdata => {
-        const jsondata = JSON.parse(rawdata);
-        const data = new OdddData(jsondata);
-        const dictionary = data["dictionary"];
-        
-        const gui = new GuiElements(container, dictionary, data["root_name"]);
-        const viewer = new OdddViewer(container, data);
-        
-        let block_container = document.getElementsByClassName("block_container")[0];
-        
-        let intersects = [];
-        
-        gui.div.addEventListener("mouseenter", function(){
-            gui.highlight = true;
-        });
-
-        gui.div.addEventListener("mouseleave", function(){
-            gui.highlight = false;
-        });
-        
-        gui.div.addEventListener('click', (event) => {
-            viewer.setPrimaryHighlight(null);     
-            const response = fetch('blocks/').then(res => res.text()).then(txt => {
-                block_container.innerHTML = txt;
-            }).then(undefined => {
-                gui.hide()
-            })
-        })   
-
-
-        document.addEventListener('click', (event) =>{
-            intersects = viewer.getIntersections(event);
-            viewer.setPrimaryHighlight(intersects);
-            
-            if(intersects.length > 0){
-                block_container.innerHTML = "";
-                let key = intersects[0].object.name;
-                let value = dictionary[key];
-                const response = fetch('blocks/' + key).then(res => res.text()).then(htmltext => {
-                    block_container.innerHTML = htmltext;
-                }).then(undefined => {
-                    gui.unhide();
-                })
-            }
-        });
-
-        document.addEventListener('pointermove', (event) =>{
-            intersects = viewer.getIntersections(event);
-            if(intersects.length > 0){
-                viewer.setSecondaryHighlight(intersects);
-                let txt = intersects[0].object.name;
-                gui.pointToElement(txt) 
-                container.style.cursor = "pointer";
-            }
-            else{
-                viewer.setSecondaryHighlight(null);
-                gui.pointToRoot();
-                container.style.cursor = "auto";
-            }
-        });
+    // const response = fetch(data_url).then(res => res.json()).then(rawdata => {
+    const jsondata = JSON.parse(script.dataset.jsondata);
+    const data = new OdddData(jsondata);
+    const dictionary = data["dictionary"];
     
-    })
+    const gui = new GuiElements(container, dictionary, data["root_name"]);
+    const viewer = new OdddViewer(container, data);
+    
+    let block_container = document.getElementsByClassName("block_container")[0];
+    
+    let intersects = [];
+    
+    gui.div.addEventListener("mouseenter", function(){
+        gui.highlight = true;
+    });
+
+    gui.div.addEventListener("mouseleave", function(){
+        gui.highlight = false;
+    });
+    
+    gui.div.addEventListener('click', (event) => {
+        viewer.setPrimaryHighlight(null);     
+        const response = fetch('blocks/').then(res => res.text()).then(txt => {
+            block_container.innerHTML = txt;
+        }).then(undefined => {
+            gui.hide()
+        })
+    })   
+
+
+    document.addEventListener('click', (event) =>{
+        intersects = viewer.getIntersections(event);
+        viewer.setPrimaryHighlight(intersects);
+        
+        if(intersects.length > 0){
+            block_container.innerHTML = "";
+            let key = intersects[0].object.name;
+            let value = dictionary[key];
+            const response = fetch('blocks/' + key).then(res => res.text()).then(htmltext => {
+                block_container.innerHTML = htmltext;
+                let pipi = block_container.getElementsByClassName('odddscript')[0];
+                console.log(pipi);
+                if(pipi){
+                    setInnerHTML(block_container, htmltext);
+                }
+                
+            }).then(undefined => {
+                gui.unhide();
+            })
+        }
+    });
+
+    document.addEventListener('pointermove', (event) =>{
+        intersects = viewer.getIntersections(event);
+        if(intersects.length > 0){
+            viewer.setSecondaryHighlight(intersects);
+            let txt = intersects[0].object.name;
+            gui.pointToElement(txt) 
+            container.style.cursor = "pointer";
+        }
+        else{
+            viewer.setSecondaryHighlight(null);
+            gui.pointToRoot();
+            container.style.cursor = "auto";
+        }
+    });
 }
 
 // run application
