@@ -33,6 +33,7 @@ export class OdddData{
         // scene
         this.controls = 'ORBIT';
         this.meshes = undefined;
+        this.include = [];
         this.environment = undefined;
         this.tonemapping = undefined;
         this.exposure = 1;
@@ -104,6 +105,9 @@ export class OdddData{
         if("meshes" in dict){
             this.meshes = dict["meshes"];
         }
+        if("include" in dict){
+            this.include = dict["include"];
+        }
         if("environment" in dict){
             this.environment = dict["environment"];
         }
@@ -170,7 +174,7 @@ export class OdddViewer {
             // renderer
             this.renderer = new THREE.WebGLRenderer( { 
                 antialias: true,
-                alpha: true
+                alpha: true,
             } );
             
             this.renderer.physicallyBasedShading = true;
@@ -258,7 +262,7 @@ export class OdddViewer {
             this.controls.minDistance = this.settings.min_distance;
             this.controls.maxDistance = this.settings.max_distance;
             
-            this.controls.minRotation = 
+            this.controls.auto_rotate = true;
             
             this.controls.enablePan = this.settings.enable_pan;
             this.controls.enableZoom = this.settings.enable_zoom;
@@ -266,6 +270,7 @@ export class OdddViewer {
             
             this.controls.target = new THREE.Vector3(this.settings.target_x, this.settings.target_y, this.settings.target_z);
             this.controls.update()
+            
             
             // bg color
 			this.backgroundCol = new THREE.Color( '#add7e6' );
@@ -308,7 +313,7 @@ export class OdddViewer {
             this.render();
             this.setGeometry.bind(this);  
             this.updateView.bind(this);
-
+           
             // loaders
             this.geoLoader = new GLTFLoader();
 
@@ -326,6 +331,8 @@ export class OdddViewer {
             this.controls.addEventListener("change", () => {
                 this.updateView();
             });
+
+
 
         }
 
@@ -353,6 +360,9 @@ export class OdddViewer {
                     }
 
                     gltf.scene.traverse(function(node){
+                        console.log(self);
+                        // console.log(self.settings.include)
+
                         if (node.isMesh || node.isLight) {
                             node.castShadow = true;
                         }
@@ -362,16 +372,57 @@ export class OdddViewer {
                         
                         if(self.settings.decompose === true){
                             node.matrixWorld.decompose( node.position, node.quaternion, node.scale );
-                            self.scene.add(node);
-                        }
+                            if(self.settings.include.includes(node.name)){
+                                console.log(node.nmae)
+                                // self.scene.add(node);
+                                }
+                            }
                     })
-                    if(self.settings.decompose === false){
-                        self.scene.add(gltf.scene)
-                    }                    
+
+                    gltf.scene.traverse(function(node){
+                        // let children = [];
+                        // for(let i=0; i<node.children.length; i++){
+                        //     let child = node.children[i];
+                        //     children.push(child);
+                        //     console.log(self.settings.include);
+                        //     console.log(child.name);
+                        //     self.scene.add(child);
+                        //     if(self.settings.include.includes(child.name)){
+                        //     }
+                        // }
+                        // node.children = [];
+                        node.visible = false;
+                        self.scene.add(node);
+                    })
+                    // if(self.settings.decompose === false){
+                    //     self.scene.add(gltf.scene)
+                    // }                    
+                    self.setVisibility();
                     self.updateView();
                 });
             }
+
             console.log("oDDD: Geometry loaded.");
+
+        }
+
+        setVisibility(){
+            console.log(this.settings.include);
+            console.log("----------------->"+this.scene.children.length);
+
+            for(let i=0; i<this.scene.children.length; i++){
+                console.log(this.settings.include);
+                let child = this.scene.children[i];
+                if(this.settings.include.includes(child.name)){
+                    child.visible = true;
+                }
+                else if(this.settings.include.length === 1 && this.settings.include[0] === ""){
+                    child.visible = true;
+                }
+                else{
+                    child.visible = false;
+                }
+            } 
         }
 
         setEnvironment(envTexPath, context=this){

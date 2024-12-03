@@ -30,8 +30,9 @@ class GuiElements{
     }
 
     pointToElement(elementname){
+        let a = "";
         if(this.dictionary && this.dictionary[elementname]){
-            elementname = this.dictionary[elementname];
+            elementname = elementname + " - " + this.dictionary[elementname];
         }
         this.infoKeyArrows.innerHTML = ">>";
         this.infoKeyArrows.style.fontWeight = 'bolder';
@@ -123,13 +124,25 @@ function main(){
             let value = dictionary[key];
             const response = fetch('blocks/' + key).then(res => res.text()).then(htmltext => {
                 block_container.innerHTML = htmltext;
-                let pipi = block_container.getElementsByClassName('odddscript')[0];
-                console.log(pipi);
-                if(pipi){
-                    setInnerHTML(block_container, htmltext);
+                let impmap = block_container.getElementsByClassName('import_map')[0];
+                let htmlscript = block_container.getElementsByClassName('odddscript')[0];
+                
+                if(impmap){
+                    p = impmap.parentElement;
+                    p.removeChild(impmap);
+                }
+
+                if(htmlscript){
+                    const parent = htmlscript.parentElement;
+                    const bl_jsondata = JSON.parse(htmlscript.dataset.jsondata);
+                    const bl_data = new OdddData(bl_jsondata);
+                    const bl_dictionary = bl_data["dictionary"];
+                    const bl_viewer = new OdddViewer(parent, bl_data);
+                    parent.removeChild(htmlscript);
+                    console.log(bl_data['include']);
                 }
                 
-            }).then(undefined => {
+            }).then(htmltext => {
                 gui.unhide();
             })
         }
