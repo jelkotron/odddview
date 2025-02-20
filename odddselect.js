@@ -1,4 +1,3 @@
-// ################ LIBRARIES ################
 import { OdddViewer } from 'viewer';
 import { OdddData } from 'viewer';
 
@@ -124,11 +123,12 @@ function main(){
             let value = dictionary[key];
             const response = fetch('blocks/' + key).then(res => res.text()).then(htmltext => {
                 block_container.innerHTML = htmltext;
-                let impmap = block_container.getElementsByClassName('import_map')[0];
                 let htmlscript = block_container.getElementsByClassName('odddscript')[0];
                 
-                if(impmap){
-                    p = impmap.parentElement;
+                let impmap = block_container.getElementsByClassName('import_map');
+                if(impmap.length > 0){
+                    impmap = impmap[0]
+                    const p = impmap.parentElement;
                     p.removeChild(impmap);
                 }
 
@@ -139,7 +139,6 @@ function main(){
                     const bl_dictionary = bl_data["dictionary"];
                     const bl_viewer = new OdddViewer(parent, bl_data);
                     parent.removeChild(htmlscript);
-                    console.log(bl_data['include']);
                 }
                 
             }).then(htmltext => {

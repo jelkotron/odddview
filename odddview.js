@@ -360,8 +360,6 @@ export class OdddViewer {
                     }
 
                     gltf.scene.traverse(function(node){
-                        console.log(self);
-                        // console.log(self.settings.include)
 
                         if (node.isMesh || node.isLight) {
                             node.castShadow = true;
@@ -373,7 +371,6 @@ export class OdddViewer {
                         if(self.settings.decompose === true){
                             node.matrixWorld.decompose( node.position, node.quaternion, node.scale );
                             if(self.settings.include.includes(node.name)){
-                                console.log(node.nmae)
                                 // self.scene.add(node);
                                 }
                             }
@@ -407,11 +404,8 @@ export class OdddViewer {
         }
 
         setVisibility(){
-            console.log(this.settings.include);
-            console.log("----------------->"+this.scene.children.length);
 
             for(let i=0; i<this.scene.children.length; i++){
-                console.log(this.settings.include);
                 let child = this.scene.children[i];
                 if(this.settings.include.includes(child.name)){
                     child.visible = true;
