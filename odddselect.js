@@ -106,7 +106,9 @@ function main(){
     gui.div.addEventListener('click', (event) => {
         viewer.setPrimaryHighlight(null);     
         const response = fetch('blocks/').then(res => res.text()).then(txt => {
-            block_container.innerHTML = txt;
+            if(block_container != undefined){
+                block_container.innerHTML = txt;
+            }
         }).then(undefined => {
             gui.hide()
         })
@@ -117,7 +119,7 @@ function main(){
         intersects = viewer.getIntersections(event);
         viewer.setPrimaryHighlight(intersects);
         
-        if(intersects.length > 0){
+        if(intersects.length > 0 && block_container != undefined){
             block_container.innerHTML = "";
             let key = intersects[0].object.name;
             let value = dictionary[key];
